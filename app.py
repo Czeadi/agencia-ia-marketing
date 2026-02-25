@@ -27,7 +27,7 @@ if st.button("🚀 Iniciar Produção Completa"):
         try:
             with st.spinner("🤖 A equipe está trabalhando no seu roteiro e voz..."):
                 os.environ["GOOGLE_API_KEY"] = api_key
-                modelo_llm = LLM(model="gemini/gemini-2.0-flash-exp", api_key=api_key)
+                modelo_llm = LLM(model="gemini/gemini-3-flash-preview", api_key=api_key)
 
                 # --- AGENTES ---
                 estrategista = Agent(
