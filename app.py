@@ -2,22 +2,36 @@ import streamlit as st
 import os
 import requests
 import time
+import asyncio
+import edge_tts
+import re
 from crewai import Agent, Task, Crew, Process, LLM
 
-# --- FUNÇÕES DE LIMPEZA E API ---
+# =================================================================
+# 1. FUNÇÕES DE SUPORTE (VOZ E LIMPEZA)
+# =================================================================
+
+async def gerar_audio_local(texto, nome_arquivo):
+    """Gera um arquivo de áudio local para conferência (Opcional)"""
+    # Usando a voz masculina: pt-BR-AntonioNeural
+    comms = edge_tts.Communicate(texto, "pt-BR-AntonioNeural")
+    await comms.save(nome_arquivo)
 
 def limpar_roteiro(texto_bruto):
     """Remove marcações de markdown e textos explicativos da IA"""
-    import re
     # Remove blocos de código markdown (```text ... ```)
     limpo = re.sub(r'```.*?```', '', texto_bruto, flags=re.DOTALL)
-    # Remove aspas e quebras de linha
-    limpo = limpo.replace('"', '').replace('\n', ' ').strip()
-    # Garante que não passe de 200 caracteres (limite de teste do D-ID)
+    # Remove aspas, asteriscos e quebras de linha
+    limpo = limpo.replace('"', '').replace('*', '').replace('\n', ' ').strip()
+    # Garante limite de caracteres para segurança da API
     return limpo[:200]
 
+# =================================================================
+# 2. FUNÇÕES DA API D-ID
+# =================================================================
+
 def criar_video_did(api_key, roteiro, image_url):
-    """Solicita a criação do vídeo ao D-ID"""
+    """Solicita a criação do vídeo ao D-ID com voz masculina"""
     url = "https://api.d-id.com/talks"
     
     texto_para_falar = limpar_roteiro(roteiro)
@@ -31,10 +45,16 @@ def criar_video_did(api_key, roteiro, image_url):
         "script": {
             "type": "text",
             "subtitles": "false",
-            "provider": {"type": "microsoft", "voice_id": "pt-BR-FranciscaNeural"},
+            "provider": {
+                "type": "microsoft", 
+                "voice_id": "pt-BR-AntonioNeural" # VOZ MASCULINA DEFINIDA AQUI
+            },
             "input": texto_para_falar
         },
-        "config": {"fluent": "false", "pad_audio": "0.0"},
+        "config": {
+            "fluent": "false", 
+            "pad_audio": "0.0"
+        },
         "source_url": image_url
     }
 
@@ -51,7 +71,7 @@ def aguardar_video(api_key, talk_id):
     url = f"https://api.d-id.com/talks/{talk_id}"
     headers = {"Authorization": f"Basic {api_key}"}
     
-    with st.status("🎬 Renderizando seu vídeo...", expanded=True) as status:
+    with st.status("🎬 Renderizando seu vídeo masculino...", expanded=True) as status:
         while True:
             response = requests.get(url, headers=headers)
             res = response.json()
@@ -66,50 +86,52 @@ def aguardar_video(api_key, talk_id):
             
             time.sleep(4)
 
-# --- INTERFACE STREAMLIT ---
+# =================================================================
+# 3. INTERFACE STREAMLIT
+# =================================================================
 
-st.set_page_config(page_title="Fábrica de Vídeos IA", page_icon="🎬")
+st.set_page_config(page_title="Fábrica de Vídeos IA - Masculino", page_icon="🎬")
 
-st.title("🎬 Fábrica de Conteúdo Full-Stack")
-st.markdown("De uma ideia ao vídeo final em um clique.")
+st.title("🎬 Fábrica de Vídeos (Persona Masculina)")
+st.markdown("Gere roteiros e vídeos com o avatar **Antonio**.")
 
-# URL de imagem garantida que o D-ID aceita
-AVATAR_URL = "https://raw.githubusercontent.com/Czeadi/agencia-ia-marketing/main/zeadi.jpeg"
+# Link de um avatar masculino estável para o teste
+AVATAR_URL = "https://raw.githubusercontent.com/Czeadi/agencia-ia-marketing/refs/heads/main/zeadi.jpeg"
 
 with st.sidebar:
     st.header("🔑 Configurações")
     gemini_key = st.text_input("Chave Gemini:", type="password")
     did_key = st.text_input("Chave D-ID (Base64):", type="password")
-    nicho = st.text_input("Nicho da Campanha:", placeholder="Ex: Manicure, Advogada...")
+    nicho = st.text_input("Nicho da Campanha:", placeholder="Ex: Finanças, Barbearia, Tecnologia...")
 
-if st.button("🚀 GERAR VÍDEO COMPLETO"):
+if st.button("🚀 GERAR VÍDEO MASCULINO"):
     if not gemini_key or not did_key or not nicho:
         st.warning("Preencha todas as chaves e o nicho na barra lateral!")
     else:
         try:
-            # 1. ETAPA DE ESTRATÉGIA E COPY
-            with st.spinner("🤖 Agentes criando o roteiro..."):
+            # ETAPA 1: AGENTES DE IA
+            with st.spinner("🤖 Agentes criando o roteiro para o Antonio..."):
                 os.environ["GOOGLE_API_KEY"] = gemini_key
                 modelo_llm = LLM(model="gemini/gemini-3-flash-preview", api_key=gemini_key)
 
                 estrategista = Agent(
                     role='Estrategista de Marketing',
                     goal=f'Criar uma ideia de post para {nicho}',
-                    backstory='Especialista em marketing digital.',
+                    backstory='Especialista em marketing digital e negócios.',
                     llm=modelo_llm
                 )
 
                 copywriter = Agent(
-                    role='Redator',
-                    goal='Escrever apenas a fala do vídeo.',
-                    backstory='Você escreve apenas o que deve ser dito, sem introduções ou explicações.',
+                    role='Redator Masculino',
+                    goal='Escrever apenas a fala do vídeo para uma voz masculina.',
+                    backstory='Você escreve apenas o texto da fala, de forma direta e firme.',
                     llm=modelo_llm
                 )
 
-                t1 = Task(description=f"Crie um tema estratégico para {nicho}.", expected_output="Tema do post.", agent=estrategista)
+                t1 = Task(description=f"Defina um tema de post para {nicho}.", expected_output="Tema do post.", agent=estrategista)
                 t2 = Task(
-                    description="Escreva um roteiro de no máximo 180 caracteres para a apresentadora falar. NÃO escreva 'Aqui está seu roteiro', escreva APENAS a fala.", 
-                    expected_output="Apenas o texto da fala.", 
+                    description="Escreva uma fala de no máximo 180 caracteres para o apresentador. Escreva APENAS a fala.", 
+                    expected_output="Texto da fala.", 
                     agent=copywriter
                 )
 
@@ -117,19 +139,20 @@ if st.button("🚀 GERAR VÍDEO COMPLETO"):
                 resultado = equipe.kickoff()
                 
                 roteiro_limpo = limpar_roteiro(str(resultado.raw))
-                st.info(f"Roteiro gerado: {roteiro_limpo}")
+                st.info(f"Roteiro para o Antonio: {roteiro_limpo}")
 
-            # 2. ETAPA DE VÍDEO
+            # ETAPA 2: PRODUÇÃO DO VÍDEO
             talk_id = criar_video_did(did_key, roteiro_limpo, AVATAR_URL)
             
             if talk_id:
                 url_final = aguardar_video(did_key, talk_id)
                 if url_final:
-                    st.success("🔥 SEU VÍDEO ESTÁ PRONTO!")
+                    st.success("🔥 SEU VÍDEO COM VOZ MASCULINA ESTÁ PRONTO!")
                     st.video(url_final)
                     st.download_button("Baixar Vídeo", url_final)
 
         except Exception as e:
             st.error(f"Erro inesperado: {e}")
 
-st.caption("Nota: Certifique-se de que sua chave D-ID está em formato Base64.")
+st.divider()
+st.caption("A voz utilizada é a 'pt-BR-AntonioNeural' da Microsoft via D-ID.")
