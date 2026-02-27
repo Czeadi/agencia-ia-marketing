@@ -96,7 +96,7 @@ st.title("🎬 Fábrica de Vídeos (Persona Masculina)")
 st.markdown("Gere roteiros e vídeos com o avatar **Antonio**.")
 
 # Link de um avatar masculino estável para o teste
-AVATAR_URL = "https://raw.githubusercontent.com/Czeadi/agencia-ia-marketing/refs/heads/main/zeadi.jpeg"
+AVATAR_URL = "https://raw.githubusercontent.com/Czeadi/agencia-ia-marketing/refs/heads/main/adilson.jpeg"
 
 with st.sidebar:
     st.header("🔑 Configurações")
