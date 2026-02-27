@@ -74,7 +74,7 @@ st.title("🎬 Fábrica de Conteúdo Full-Stack")
 st.markdown("De uma ideia ao vídeo final em um clique.")
 
 # URL de imagem garantida que o D-ID aceita
-AVATAR_URL = "https://static.d-id.com/memories/noemi.png"
+AVATAR_URL = "https://raw.githubusercontent.com/D-ID-Samples/did-sdk-tutorials/main/assets/noemi.png"
 
 with st.sidebar:
     st.header("🔑 Configurações")
