@@ -77,7 +77,7 @@ with st.sidebar:
     st.info("Dica: A chave do D-ID no código API precisa ser convertida para Base64 ou usada como chave de teste.")
 
 # IMAGEM DO AVATAR (Pode ser uma URL de uma foto sua no GitHub ou Google Drive)
-AVATAR_URL = "https://imgur.com/a/ctgXM9z.jpg"
+AVATAR_URL = "https://raw.githubusercontent.com/D-ID-Samples/did-sdk-tutorials/main/assets/noemi.png"
 
 if st.button("🚀 GERAR VÍDEO COMPLETO"):
     if not gemini_key or not did_key or not nicho:
