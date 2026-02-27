@@ -74,7 +74,7 @@ st.title("🎬 Fábrica de Conteúdo Full-Stack")
 st.markdown("De uma ideia ao vídeo final em um clique.")
 
 # URL de imagem garantida que o D-ID aceita
-AVATAR_URL = "https://github.com/Czeadi/agencia-ia-marketing/blob/main/zeadi.jpeg?raw=true"
+AVATAR_URL = "https://raw.githubusercontent.com/Czeadi/agencia-ia-marketing/main/zeadi.jpeg"
 
 with st.sidebar:
     st.header("🔑 Configurações")
