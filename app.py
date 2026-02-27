@@ -86,7 +86,7 @@ if st.button("🚀 GERAR VÍDEO COMPLETO"):
         try:
             with st.spinner("🤖 Agentes trabalhando na estratégia e roteiro..."):
                 os.environ["GOOGLE_API_KEY"] = gemini_key
-                modelo_llm = LLM(model="gemini/gemini-2.0-flash-exp", api_key=gemini_key)
+                modelo_llm = LLM(model="gemini/gemini-3-flash-preview", api_key=gemini_key)
 
                 # AGENTES
                 estrategista = Agent(role='CMO', goal=f'Estratégia para {nicho}', backstory='Expert em marketing.', llm=modelo_llm)
