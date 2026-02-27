@@ -2,85 +2,122 @@ import streamlit as st
 import os
 import asyncio
 import edge_tts
+import requests
+import time
 from crewai import Agent, Task, Crew, Process, LLM
 
-# FUNÇÃO PARA GERAR A VOZ (TOTALMENTE GRÁTIS)
+# --- FUNÇÕES DE SUPORTE ---
+
 async def gerar_audio(texto, nome_arquivo):
+    """Gera áudio MP3 a partir do texto"""
     comms = edge_tts.Communicate(texto, "pt-BR-FranciscaNeural")
     await comms.save(nome_arquivo)
 
-# CONFIGURAÇÃO DA PÁGINA
-st.set_page_config(page_title="IA Marketing + Avatar", page_icon="🎬")
+def criar_video_did(api_key, roteiro, image_url):
+    """Envia o roteiro para o D-ID gerar o vídeo com avatar"""
+    url = "https://api.d-id.com/talks"
+    
+    headers = {
+        "Authorization": f"Basic {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "script": {
+            "type": "text",
+            "subtitles": "false",
+            "provider": {"type": "microsoft", "voice_id": "pt-BR-FranciscaNeural"},
+            "ssml": "false",
+            "input": roteiro
+        },
+        "config": {"fluent": "false", "pad_audio": "0.0"},
+        "source_url": image_url
+    }
 
-st.title("🎬 Agência de IA com Produtor de Vídeo")
-st.markdown("Gere estratégias, textos e agora a **VOZ** para seu avatar.")
+    response = requests.post(url, json=payload, headers=headers)
+    if response.status_code == 201:
+        return response.json().get("id")
+    else:
+        st.error(f"Erro no D-ID: {response.text}")
+        return None
+
+def aguardar_video(api_key, talk_id):
+    """Fica checando se o vídeo ficou pronto"""
+    url = f"https://api.d-id.com/talks/{talk_id}"
+    headers = {"Authorization": f"Basic {api_key}"}
+    
+    while True:
+        response = requests.get(url, headers=headers)
+        res = response.json()
+        status = res.get("status")
+        
+        if status == "started":
+            st.info("🎥 O vídeo está sendo renderizado...")
+        elif status == "done":
+            return res.get("result_url")
+        elif status == "error":
+            st.error("Erro na renderização do vídeo.")
+            return None
+        
+        time.sleep(5) # Espera 5 segundos antes de checar de novo
+
+# --- INTERFACE STREAMLIT ---
+
+st.set_page_config(page_title="Fábrica de Vídeos IA", page_icon="🎬", layout="wide")
+
+st.title("🎬 Fábrica de Conteúdo Full-Stack")
+st.markdown("De uma ideia até o **vídeo pronto para postar** no Instagram.")
 
 with st.sidebar:
-    st.header("Configurações")
-    api_key = st.text_input("Chave Gemini:", type="password")
-    nicho = st.text_input("Nicho da Empreendedora:", placeholder="Ex: Estética, Finanças...")
+    st.header("🔑 Configurações")
+    gemini_key = st.text_input("Chave Gemini:", type="password")
+    did_key = st.text_input("Chave D-ID (Base64):", type="password")
+    nicho = st.text_input("Nicho da Campanha:", placeholder="Ex: Estética Automotiva")
+    
+    st.info("Dica: A chave do D-ID no código API precisa ser convertida para Base64 ou usada como chave de teste.")
 
-if st.button("🚀 Iniciar Produção Completa"):
-    if not api_key or not nicho:
-        st.error("Preencha a chave e o nicho!")
+# IMAGEM DO AVATAR (Pode ser uma URL de uma foto sua no GitHub ou Google Drive)
+AVATAR_URL = "https://create-images-results.d-id.com/api_docs/assets/noemi.png"
+
+if st.button("🚀 GERAR VÍDEO COMPLETO"):
+    if not gemini_key or not did_key or not nicho:
+        st.warning("Preencha todas as chaves e o nicho!")
     else:
         try:
-            with st.spinner("🤖 A equipe está trabalhando no seu roteiro e voz..."):
-                os.environ["GOOGLE_API_KEY"] = api_key
-                modelo_llm = LLM(model="gemini/gemini-3-flash-preview", api_key=api_key)
+            with st.spinner("🤖 Agentes trabalhando na estratégia e roteiro..."):
+                os.environ["GOOGLE_API_KEY"] = gemini_key
+                modelo_llm = LLM(model="gemini/gemini-2.0-flash-exp", api_key=gemini_key)
 
-                # --- AGENTES ---
-                estrategista = Agent(
-                    role='Estrategista',
-                    goal=f'Plano de marketing para {nicho}',
-                    backstory='Expert em branding.',
-                    llm=modelo_llm, verbose=True
-                )
+                # AGENTES
+                estrategista = Agent(role='CMO', goal=f'Estratégia para {nicho}', backstory='Expert em marketing.', llm=modelo_llm)
+                copywriter = Agent(role='Copywriter', goal='Criar roteiro de 15s.', backstory='Expert em Reels.', llm=modelo_llm)
 
-                copywriter = Agent(
-                    role='Copywriter',
-                    goal='Criar legendas e roteiros curtos.',
-                    backstory='Expert em escrita persuasiva.',
-                    llm=modelo_llm, verbose=True
-                )
+                # TAREFAS
+                t1 = Task(description=f"Defina o tema do post para {nicho}.", expected_output="Tema do post.", agent=estrategista)
+                t2 = Task(description="Crie um roteiro curto (máx 200 caracteres) para a apresentadora falar.", expected_output="Texto do roteiro.", agent=copywriter)
 
-                # NOVO AGENTE: PRODUTOR DE VÍDEO
-                produtor = Agent(
-                    role='Produtor de Vídeo e Avatar',
-                    goal='Criar instruções visuais e roteiro de áudio para um avatar.',
-                    backstory='Especialista em criar prompts para IAs de vídeo e direção de cena.',
-                    llm=modelo_llm, verbose=True
-                )
-
-                # --- TAREFAS ---
-                t1 = Task(description=f"Crie 1 tema de post para {nicho}.", expected_output="Um tema estratégico.", agent=estrategista)
-                
-                t2 = Task(description="Crie um roteiro de 15 segundos para um vídeo de avatar.", expected_output="Roteiro de fala para o vídeo.", agent=copywriter)
-                
-                t3 = Task(
-                    description="Crie o prompt visual para gerar o rosto do avatar e as instruções de edição.",
-                    expected_output="Prompt para gerador de imagem (DALL-E) e descrição da cena.",
-                    agent=produtor
-                )
-
-                equipe = Crew(agents=[estrategista, copywriter, produtor], tasks=[t1, t2, t3], process=Process.sequential)
+                equipe = Crew(agents=[estrategista, copywriter], tasks=[t1, t2], process=Process.sequential)
                 resultado = equipe.kickoff()
-
-                # --- GERANDO A VOZ ---
-                roteiro_texto = str(resultado.raw) # Pega o texto gerado
-                arquivo_audio = "voz_propaganda.mp3"
-                asyncio.run(gerar_audio(roteiro_texto[:500], arquivo_audio)) # Gera áudio dos primeiros 500 caracteres
-
-                # --- MOSTRAR RESULTADO ---
-                st.success("✅ Produção Finalizada!")
                 
-                st.subheader("🔊 Voz do Avatar (Áudio Gerado)")
-                st.audio(arquivo_audio)
+                roteiro_final = str(resultado.raw)
+                st.subheader("📝 Roteiro Criado:")
+                st.write(roteiro_final)
 
-                st.subheader("📝 Roteiro e Instruções do Produtor")
-                st.write(resultado.raw)
+            with st.spinner("🎤 Gerando voz e animando avatar..."):
+                # 1. Gera o vídeo no D-ID
+                talk_id = criar_video_did(did_key, roteiro_final, AVATAR_URL)
+                
+                if talk_id:
+                    # 2. Aguarda a renderização
+                    url_video_final = aguardar_video(did_key, talk_id)
+                    
+                    if url_video_final:
+                        st.success("🔥 SEU VÍDEO ESTÁ PRONTO!")
+                        st.video(url_video_final)
+                        st.download_button("Baixar Vídeo", url_video_final)
 
         except Exception as e:
-            st.error(f"Erro: {e}")
+            st.error(f"Erro Geral: {e}")
 
-st.caption("Aperte o botão para ver a mágica acontecer.")
+st.markdown("---")
+st.caption("Esta ferramenta consome créditos do D-ID por cada vídeo gerado.")
